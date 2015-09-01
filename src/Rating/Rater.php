@@ -45,11 +45,53 @@ class Rater {
 	}
 
 	/**
+	 * todo: this shouldn't be in this class
+	 *
+	 * @return string
+	 */
+	protected function get_client_ip() {
+		$headers = ( function_exists( 'apache_request_headers' ) ) ? apache_request_headers() : $_SERVER;
+
+		if ( array_key_exists( 'X-Forwarded-For', $headers ) && filter_var( $headers['X-Forwarded-For'], FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 ) ) {
+			$ip = $headers['X-Forwarded-For'];
+		} elseif ( array_key_exists( 'HTTP_X_FORWARDED_FOR', $headers ) && filter_var( $headers['HTTP_X_FORWARDED_FOR'], FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 ) ) {
+			$ip = $headers['HTTP_X_FORWARDED_FOR'];
+		} else {
+			$ip = filter_var( $_SERVER['REMOTE_ADDR'], FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 );
+		}
+
+		return $ip;
+	}
+
+	/**
+	 * @return bool
+	 */
+	protected function is_bot() {
+
+		// make sure to block out bots
+		if( empty( $_SERVER['HTTP_USER_AGENT'] ) || preg_match( '/bot|crawl|slurp|spider/i', $_SERVER['HTTP_USER_AGENT'] ) ) {
+			return true;
+		}
+
+		// if POST request, check if honeypot is empty
+		if( $_SERVER['REQUEST_METHOD'] === 'POST' && ( ! isset( $_POST['url'] ) || ! empty( $_POST['url'] ) ) ) {
+			return true;
+		}
+
+		return false;
+	}
+
+	/**
 	 * @return bool
 	 */
 	public function listen() {
 
 		if( ! isset( $_GET['wpkb_action'] ) || $_GET['wpkb_action'] !== 'rate' ) {
+			return false;
+		}
+
+		// do nothing if this is a bot
+		if( $this->is_bot() ) {
 			return false;
 		}
 
@@ -62,17 +104,14 @@ class Rater {
 			return false;
 		}
 
-		$rating = new Rating( $rating_number, $message );
-		$ratings = $this->get_post_ratings( $post_id );
+		$rating = new Rating( $post_id, $rating_number, $message, $this->get_client_ip() );
+		$ratings = new Ratings();
+
+		// delete previous rating by this ip
+		$ratings->delete_by_ip( $post_id, $rating->ip );
 
 		// add to array
-		$ratings->add( $rating );
-
-		// calculate new percentage
-		$percentage = $ratings->average();
-
-		update_post_meta( $post_id, 'wpkb_ratings', $ratings->toArray() );
-		update_post_meta( $post_id, 'wpkb_rating_perc', $percentage );
+		$ratings->save( $rating );
 
 		// clean output buffer so we can redirect
 		if( ob_get_level() > 0 ) {
@@ -81,7 +120,7 @@ class Rater {
 
 		// respond
 		if( defined( 'DOING_AJAX' ) && DOING_AJAX ) {
-
+			// todo
 		} else {
 
 			if( ! isset( $_REQUEST['message'] ) && $rating_number <= 2 ) {
@@ -110,6 +149,7 @@ class Rater {
 			<p><label for="message">Please explain in short why you did not find this article helpful. We would like to improve it based on your feedback!</label></p>
 			<p><textarea id="message" rows="10" name="message" maxlength="255" style="width: 100%;"></textarea></p>
 			<p><input type="submit" class="button" value="Submit"></p>
+			<div style="position: absolute; left: -9999999px;"><input type="text" name="url" value="" /></div>
 		</form>
 		<?php
 		return ob_get_clean();
@@ -139,7 +179,7 @@ class Rater {
 			)
 		);
 
-		$html .= '<p class="wpkb-rating">' . sprintf( 'Was this article helpful? <a href="%s" class="wpkb-rating-option wpkb-rating-5">Yes</a> &middot; <a href="%s" class="wpkb-rating-option wpkb-rating-1">No</a>', $link . '&rating=5', $link . '&rating=1' ) . '</p>';
+		$html .= '<p class="wpkb-rating">' . sprintf( 'Was this article helpful? <a href="%s" rel="nofollow" class="wpkb-rating-option wpkb-rating-5">Yes</a> &middot; <a href="%s" rel="nofollow" class="wpkb-rating-option wpkb-rating-1">No</a>', $link . '&rating=5', $link . '&rating=1' ) . '</p>';
 		return $content . PHP_EOL . $html;
 	}
 }

@@ -3,10 +3,17 @@ namespace WPKB\Rating;
 
 class Rating {
 
+	public $ID = 0;
+
 	/**
 	 * @var int
 	 */
 	public $rating = 1;
+
+	/**
+	 * @var int
+	 */
+	public $post_ID;
 
 	/**
 	 * @var string
@@ -24,45 +31,26 @@ class Rating {
 	public $message = '';
 
 	/**
+	 * @param int $post_ID
 	 * @param      $rating
 	 * @param string $message
 	 * @param null $ip
 	 * @param null $timestamp
 	 */
-	public function __construct( $rating, $message = '', $ip = null, $timestamp = null ) {
+	public function __construct( $post_ID, $rating, $message = '', $ip = null, $timestamp = null ) {
+		$this->post_ID = $post_ID;
 		$this->rating = $rating;
 		$this->message = $message;
 		$this->ip = $ip;
 		$this->timestamp = $timestamp;
 
-		if( $ip === null ) {
-			$this->ip = $this->get_client_ip();
-		}
-
 		if( $timestamp === null ) {
-			$this->timestamp = time();
+			$this->timestamp = date( 'Y-m-d H:i:s' );
 		}
 
 	}
 
-	/**
-	 * todo: this shouldn't be in this class
-	 *
-	 * @return string
-	 */
-	protected function get_client_ip() {
-		$headers = ( function_exists( 'apache_request_headers' ) ) ? apache_request_headers() : $_SERVER;
 
-		if ( array_key_exists( 'X-Forwarded-For', $headers ) && filter_var( $headers['X-Forwarded-For'], FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 ) ) {
-			$ip = $headers['X-Forwarded-For'];
-		} elseif ( array_key_exists( 'HTTP_X_FORWARDED_FOR', $headers ) && filter_var( $headers['HTTP_X_FORWARDED_FOR'], FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 ) ) {
-			$ip = $headers['HTTP_X_FORWARDED_FOR'];
-		} else {
-			$ip = filter_var( $_SERVER['REMOTE_ADDR'], FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 );
-		}
-
-		return $ip;
-	}
 
 	/**
 	 * @param $array
@@ -70,10 +58,10 @@ class Rating {
 	 * @return Rating
 	 */
 	public static function fromArray( $array ) {
-		$object = new Rating( $array['rating'] );
+		$object = new Rating( $array['post_ID'], $array['rating'] );
 
 		// optional keys
-		$keys = array( 'message', 'ip', 'timestamp' );
+		$keys = array( 'ID', 'message', 'ip', 'timestamp' );
 		foreach( $keys as $key ) {
 			if( ! empty( $array[ $key ] ) ) {
 				$object->{$key} = $array[ $key ];
@@ -81,5 +69,24 @@ class Rating {
 		}
 
 		return $object;
+	}
+
+	/**
+	 * @return array
+	 */
+	public function toArray() {
+		$data =  array(
+			'post_ID' => $this->post_ID,
+			'ip' => $this->ip,
+			'rating' => $this->rating,
+			'timestamp' => $this->timestamp,
+			'message' => $this->message
+		);
+
+		if( ! empty( $this->ID ) ) {
+			$data['ID'] = $this->ID;
+		}
+
+		return $data;
 	}
 }

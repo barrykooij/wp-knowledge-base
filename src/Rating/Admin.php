@@ -11,6 +11,7 @@ class Admin {
 
 	public function __construct() {
 		global $wpkb;
+
 		$this->rating = $wpkb->rating;
 	}
 
@@ -21,6 +22,25 @@ class Admin {
 		add_filter( 'pre_get_posts', array( $this, 'sortable_orderby' ) );
 		add_action( 'add_meta_boxes', array( $this, 'add_meta_box' ) );
 		add_action( 'admin_init', array( $this, 'listen' ) );
+		add_action( 'admin_init', array( $this, 'run_upgrade_routine' ) );
+	}
+
+	/**
+	 * Creates an instance of the UpgradeRoutine class and runs it. If necessary.
+	 *
+	 * @return bool
+	 */
+	public function run_upgrade_routine() {
+		$previous_version = get_option( 'wpkb_version', 0 );
+		$current_version = WPKB_VERSION;
+
+		if( version_compare( $previous_version, $current_version, '=>' ) ) {
+			return false;
+		}
+
+		$routine = new UpgradeRoutine( $previous_version, $current_version );
+		$routine->run();
+		return true;
 	}
 
 	/**
